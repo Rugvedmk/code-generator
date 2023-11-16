@@ -1,164 +1,146 @@
 import nltk
-# you will have to download nltk library before running this file
-# using comand = pip instal nltk
 
-nltk.download('punkt')
+asm = open("asm.txt").readlines()
+# print(asm)
 
-# Read the file content and split it into lines
-file_content = open("asm.txt").readlines()
-intermediateCodeFile = open("intermediate.txt","w")
-
-# Initialize an empty list to store tokens
 tokens = []
 
-# Iterate through each line in the file
-for line in file_content:
-    # Tokenize each line into words
-    line_tokens = nltk.word_tokenize(line)
-    # Add the words from this line to the list of tokens
-    tokens.extend(line_tokens)
-    # Add '\n' to indicate a new line
-    tokens.append('\n')
+for line in asm:
+    lineToken = nltk.word_tokenize(line)
 
-for i in range(len(tokens)):
-    tokens[i] = tokens[i].upper()
+    for i in range(len(lineToken)):
+        lineToken[i] = lineToken[i].upper()
+    lineToken.append("\n")
+    tokens.extend(lineToken)
 
-#Declaring mot,pot,dl,reg
-mot = ["MOVER","MOVEM","ADD","SUB","MULT","DIV","BC","COMP","PRINT","READ"]
-pot = ["START","END","EQU","ORIGIN","LTROG"]
-dl = ["DS","DC"]
+# print(tokens)
+
+#mot,pot,dl,reg
+mot = ["MOVER","MOVEM","ADD","SUB","MULT","DIV","BC","COMP","PRINT","READ"]#IS
+pot = ["START","END","EQU","ORIGIN","LTROG"]#AD
+dl = ["DS","DC"]#DL
 reg = ["R1","R2","R3","R4","R5"]
 
 
-#literle table
-literals = []
-litAdr = []
-
-#Symbol table
-symbols = []
-symAdr = []
-
-baseAdr = int(tokens[1]) 
-currentlocation = baseAdr - 1 #keep the address of current instruction
-
-ltrogCount = 0 #This variable keep the count of unaddresed literals
-previous = tokens[0] #It contains previous token
-
-#function to check if the given string is integer
-def is_integer(s):
+def is_integer(num):
     try:
-        int(s)
+        num = int(num)
         return True
+    
     except ValueError:
         return False
 
+#Symbol table
+symTab = []
+symadr = []
+
+#literal table
+litTab = []
+litAdr = []
+
+baseAdr = int(tokens[1])
+curAdr = baseAdr - 1
+
+previous = tokens[0]
+for token in tokens:
+    if token == "DS":
+        symTab.append(previous)
+
+    previous = token
+
+
+intfile = open("intermediate.txt","w")
 comand = ""
-
-print("\nIntermediate code : ")
-#Initializing literal and symbole table and generating intermediate code
-for i in tokens:
-	#Here i is a token(eg. =3') in the array of tokens(=['START','200',.....])
-	
-	
-	if('=' in i): #if the token contains i in it then it will execute (eg =3')
-		literals.append(i)
-		ltrogCount = ltrogCount + 1   
+litCount = 0
+curLitInd = 0
+previous = tokens[0]
+for token in tokens:
+    if is_integer(token):
+        comand = comand + "(C," + token + ")"
 
 
-	if('DS' in i or 'DC' in i or ':' in i): # ':' is for label
-		symbols.append(previous)
-		symAdr.append(currentlocation) 
+    if token in symTab:
+        index = symTab.index(token) + 1
+        comand = comand + "(S," + str(index) + ") "
 
-	if('ORIGIN' in previous):
-		currentlocation = int(i) 
+    if token != "LTROG" and token in pot:
+        index = pot.index(token) + 1
+        comand = comand + "(AD," + str(index) + ") "
 
-	if('\n' in i):
-		currentlocation = currentlocation + 1
+    if "=" in token:
+        temp = ""
+        for i in token:
+            temp += i
+            if(i == "="):
+                temp = ""
+        litCount += 1
+        litTab.append(temp)
 
-	if('LTROG' in i):
-		litIndex = len(litAdr)
-		for j in range(ltrogCount): #This for loop will execute for ltrogCount times where ltrogCount is total number of un initialized variables
-			comand = str(currentlocation) + ")"
-			litAdr.append(currentlocation) #adding address to literals
-			currentlocation = currentlocation + 1
-			tempLiteral = ""
-			for h in literals[litIndex]:
-				if(h == "="):
-					tempLiteral = ""
-				else :
-					tempLiteral = tempLiteral + h
+        index = litTab.index(temp) + 1
+        comand = comand + "(L," + str(index) + ") "
 
-			literals[litIndex] = tempLiteral
-			comand = comand + "(AD,5) _ " + tempLiteral
-			print(comand)
-			comand = comand + "\n"
-			intermediateCodeFile.write(comand) #Writing the code in the txt file
-			comand = ""
-			litIndex = litIndex + 1
-			
-		ltrogCount = 0
+    if "DS" in token or "DC" in token:
+        symadr.append(curAdr)
+    
+    if token == "LTROG":
+        comand = ""
+        for i in range(litCount):
+            comand = str(curAdr) + ")" + "(AD,5) _ " + litTab[curLitInd]
+            litAdr.append(curAdr)
+            print(comand)
+            comand = comand + "\n"
+            intfile.write(comand)
+            curAdr += 1
+            curLitInd += 1
+            comand = ""
 
-	#intermediate code	
-	if(is_integer(i)):
-		comand = comand + "(C," + i + ")"
+        litCount = 0
+        curAdr = curAdr - 1
+        # comand += str(curAdr) + ")" 
 
-	if(i in pot):
-		if(i != "LTROG"):
-			index = pot.index(i) + 1
-			comand = comand + "(AD," + str(index) + ")"
+    if token in mot:
+        index = mot.index(token) + 1
+        comand = comand + "(IS," + str(index) + ") "
 
-	if(i in reg):
-		comand = comand + i    
+    if token in reg:
+        comand = comand + token + " "
 
-	if(i in mot):
-		index = mot.index(i) + 1
-		comand = comand + "(IS," + str(index) + ")"
+    if token in dl:
+        index = dl.index(token) + 1
+        comand = comand + "(DL," + str(index) + ") "
 
-	if(i in dl):
-		index = dl.index(i) + 1
-		comand = comand + "(DL," + str(index) + ")"
+    if "\n" in token:
+        if comand == "":
+            None
+        else:
+            print(comand)
+            comand = comand + "\n"
+            intfile.write(comand)
+        curAdr += 1
+        comand = str(curAdr) + ")"
 
-	if(i in symbols):
-		index = symbols.index(i) + 1
-		comand = comand + "(S," + str(index) + ")"
+    previous = token
 
-	if(i in literals):
-		index = literals.index(i) + 1
-		comand = comand + "(L," + str(index) + ")"
-
-	if('\n' in i):
-		print(comand)
-		comand = comand + "\n"
-		intermediateCodeFile.write(comand)	#Writing the code in the txt file
-		comand = ""
-		comand = comand + str(currentlocation) + ")"
-
-	previous = i
+intfile.write("end of code\n")
+print(litTab)
+print(litAdr)
+print(symTab)
+print(symadr)
 
 
-intermediateCodeFile.write("end of code\n")
-for i in literals:
-	intermediateCodeFile.write(i + " ") #Writing literals in the txt file
-intermediateCodeFile.write("\n") #For new line
+for i in litTab:
+    intfile.write(i + " ")
+intfile.write("\n")
 
 for i in litAdr:
-	intermediateCodeFile.write(str(i) + " ")  #Writing literal address in the txt file
-intermediateCodeFile.write("\n")
+    intfile.write(str(i) + " ")
+intfile.write("\n")
 
-for i in symbols:
-	intermediateCodeFile.write(i + " ")
-intermediateCodeFile.write("\n")
+for i in symTab:
+    intfile.write(i + " ")
+intfile.write("\n")
 
-for i in symAdr:
-	intermediateCodeFile.write(str(i) + " ")
-intermediateCodeFile.write("\n")
-
-print("\nLiteral table : ")   
-print(literals)
-print(litAdr)
-print("\nSymbol Table : ")
-print(symbols)
-print(symAdr) 
-
-intermediateCodeFile.close()
+for i in symadr:
+    intfile.write(str(i) + " ")
+intfile.write("\n")
 
